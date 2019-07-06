@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 readonly URL_SCRIPTS='https://raw.githubusercontent.com/adys/aws-sf-userdata/master/'
 

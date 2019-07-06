@@ -3,13 +3,12 @@
 ME=$(basename "$0")
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-INSTANCE_ID=$(curl -s 169.254.169.254/latest/meta-data/instance-id)
-REGION=$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/document | jq -r .region)
-
 readonly NET_CONF_FILE_PATH='/etc/netplan/51-eth1.yaml'
 readonly STATIC_VOLUME='/dev/xvdz'
 readonly DATA_DIR='/data'
 
+INSTANCE_ID=''
+REGION=''
 DYNAMIC_IP=''
 SUBNET_ID=''
 SUBNET_CIDR_BLOCK=''
@@ -40,6 +39,9 @@ get_local_ip() {
 }
 
 set_vars() {
+  INSTANCE_ID=$(curl -s 169.254.169.254/latest/meta-data/instance-id)
+  REGION=$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/document | jq -r .region)
+
   DYNAMIC_IP=$(get_local_ip)
   log_info "DYNAMIC_IP: ${DYNAMIC_IP}"
 
@@ -109,8 +111,10 @@ setup_data_dir() {
 # init checks
 [[ -e $STATIC_VOLUME ]] || log_err "'${STATIC_VOLUME}' could not be found"
 
+
+# TODO: INSTALL DEPENDENCIES jq
 set_vars
 setup_network
 setup_data_dir
 
-log_info 'finish
+log_info 'finish'
