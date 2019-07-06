@@ -1,3 +1,116 @@
 #!/bin/bash
 
-echo 'test'
+ME=$(basename "$0")
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+INSTANCE_ID=$(curl -s 169.254.169.254/latest/meta-data/instance-id)
+REGION=$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/document | jq -r .region)
+
+readonly NET_CONF_FILE_PATH='/etc/netplan/51-eth1.yaml'
+readonly STATIC_VOLUME='/dev/xvdz'
+readonly DATA_DIR='/data'
+
+DYNAMIC_IP=''
+SUBNET_ID=''
+SUBNET_CIDR_BLOCK=''
+SUBNET_WITHOUT_MASK=''
+SUBNET_GW=''
+SUBNET_MASK=''
+STATIC_IP=''
+
+log_info() {
+  echo "$(date -I'seconds')|${ME}|info| ${1}"
+}
+
+log_err() {
+  echo "$(date -I'seconds')|${ME}|error| ${1}" >&2
+  exit 1
+}
+
+get_local_ip() {
+  echo $(hostname -I | awk '{print $1}')
+}
+
+init_check() {
+  [[ -e $STATIC_VOLUME ]] || return 1
+}
+
+get_local_ip() {
+  echo $(hostname -I | awk '{print $1}')
+}
+
+set_vars() {
+  DYNAMIC_IP=$(get_local_ip)
+  log_info "DYNAMIC_IP: ${DYNAMIC_IP}"
+
+  SUBNET_ID=$(aws --region $REGION ec2 describe-instances \
+    --instance-ids $INSTANCE_ID \
+    | jq -r '.Reservations[0].Instances[0].SubnetId')
+  log_info "SUBNET_ID: ${SUBNET_ID}"
+  [[ -z "$SUBNET_ID" ]] && log_err "'${SUBNET_ID}' var could not be set"
+
+  SUBNET_CIDR_BLOCK=$(aws --region $region ec2 describe-subnets --subnet-ids $SUBNET_ID | jq -r '.Subnets[0].CidrBlock')
+  log_info "SUBNET_CIDR_BLOCK: ${SUBNET_CIDR_BLOCK}"
+  [[ -z "$SUBNET_CIDR_BLOCK" ]] && log_err "'${SUBNET_CIDR_BLOCK}' var could not be set"
+
+  SUBNET_WITHOUT_MASK=$(echo $SUBNET_CIDR_BLOCK | awk -F'/' '{print $1}')
+  SUBNET_GW=$(echo $SUBNET_WITHOUT_MASK | sed 's/0$/1/')
+  SUBNET_MASK=$(echo $SUBNET_CIDR_BLOCK | awk -F'/' '{print $2}')
+
+  STATIC_IP=$(aws --region $REGION ec2 describe-instances \
+    --instance-ids $INSTANCE_ID \
+    | jq -r --arg local_ip "${DYNAMIC_IP}" \
+    '.Reservations[0].Instances[0].NetworkInterfaces[] | select(.PrivateIpAddress!=$local_ip).PrivateIpAddress')
+  log_info "STATIC_IP: ${STATIC_IP}"
+  [[ -z "$STATIC_IP" ]] && log_err "'${STATIC_IP}' var could not be set"
+}
+
+setup_network() {
+  cat <<EOF > $NET_CONF_FILE_PATH
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    eth1:
+      addresses:
+       - ${STATIC_IP}/${SUBNET_MASK}
+      dhcp4: no
+      routes:
+       - to: 0.0.0.0/0
+         via: ${SUBNET_GW} # Default gateway
+         table: 1000
+       - to: ${STATIC_IP}
+         via: 0.0.0.0
+         scope: link
+         table: 1000
+      routing-policy:
+        - from: ${STATIC_IP}
+          table: 1000
+EOF
+
+  log_info "'${NET_CONF_FILE_PATH}' file generated"
+  log_info "Running 'netplan --debug apply'"
+  netplan --debug apply
+}
+
+setup_data_dir() {
+  mkdir -p $DATA_DIR
+  eval "$(blkid -o udev $STATIC_VOLUME)"
+  if [[ ${ID_FS_TYPE} == "ext4" ]]; then
+    log_info "Filesystem ext4 has been found on the volume"
+  else
+    logOut "Formating the volume"
+    mkfs.ext4 $STATIC_VOLUME
+  fi
+  log_info "Mounting the volume"
+  mount $STATIC_VOLUME $DATA_DIR
+}
+
+# init checks
+[[ -e $STATIC_VOLUME ]] || log_err "'${STATIC_VOLUME}' could not be found"
+
+set_vars
+setup_network
+setup_data_dir
+
+log_info 'finish
