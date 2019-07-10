@@ -6,6 +6,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 readonly NET_CONF_FILE_PATH='/etc/netplan/51-eth1.yaml'
 readonly STATIC_VOLUME='/dev/xvdz'
 readonly DATA_DIR='/data'
+readonly LOG_FILE='/var/log/ll-bootstrap.out'
 
 INSTANCE_ID=''
 REGION=''
@@ -18,11 +19,11 @@ SUBNET_MASK=''
 STATIC_IP=''
 
 log_info() {
-  echo "$(date -I'seconds')|${ME}|info| ${1}"
+  echo "$(date -I'seconds')|${ME}|info| ${1}" | tee -a $LOG_FILE
 }
 
 log_err() {
-  echo "$(date -I'seconds')|${ME}|error| ${1}" >&2
+  echo "$(date -I'seconds')|${ME}|error| ${1}" >&2 | tee -a $LOG_FILE
   exit 1
 }
 
@@ -49,11 +50,11 @@ set_vars() {
     --instance-ids $INSTANCE_ID \
     | jq -r '.Reservations[0].Instances[0].SubnetId')
   log_info "SUBNET_ID: ${SUBNET_ID}"
-  [[ -z "$SUBNET_ID" ]] && log_err "'${SUBNET_ID}' var could not be set"
+  [[ -z "$SUBNET_ID" ]] && log_err "'SUBNET_ID' var could not be set"
 
-  SUBNET_CIDR_BLOCK=$(aws --region $region ec2 describe-subnets --subnet-ids $SUBNET_ID | jq -r '.Subnets[0].CidrBlock')
+  SUBNET_CIDR_BLOCK=$(aws --region $REGION ec2 describe-subnets --subnet-ids $SUBNET_ID | jq -r '.Subnets[0].CidrBlock')
   log_info "SUBNET_CIDR_BLOCK: ${SUBNET_CIDR_BLOCK}"
-  [[ -z "$SUBNET_CIDR_BLOCK" ]] && log_err "'${SUBNET_CIDR_BLOCK}' var could not be set"
+  [[ -z "$SUBNET_CIDR_BLOCK" ]] && log_err "'SUBNET_CIDR_BLOCK' var could not be set"
 
   SUBNET_WITHOUT_MASK=$(echo $SUBNET_CIDR_BLOCK | awk -F'/' '{print $1}')
   SUBNET_GW=$(echo $SUBNET_WITHOUT_MASK | sed 's/0$/1/')
@@ -64,7 +65,7 @@ set_vars() {
     | jq -r --arg local_ip "${DYNAMIC_IP}" \
     '.Reservations[0].Instances[0].NetworkInterfaces[] | select(.PrivateIpAddress!=$local_ip).PrivateIpAddress')
   log_info "STATIC_IP: ${STATIC_IP}"
-  [[ -z "$STATIC_IP" ]] && log_err "'${STATIC_IP}' var could not be set"
+  [[ -z "$STATIC_IP" ]] && log_err "'STATIC_IP' var could not be set"
 }
 
 setup_network() {
@@ -101,7 +102,7 @@ setup_data_dir() {
   if [[ ${ID_FS_TYPE} == "ext4" ]]; then
     log_info "Filesystem ext4 has been found on the volume"
   else
-    logOut "Formating the volume"
+    log_info "Formating the volume"
     mkfs.ext4 $STATIC_VOLUME
   fi
   log_info "Mounting the volume"
@@ -111,8 +112,6 @@ setup_data_dir() {
 # init checks
 [[ -e $STATIC_VOLUME ]] || log_err "'${STATIC_VOLUME}' could not be found"
 
-
-# TODO: INSTALL DEPENDENCIES jq
 set_vars
 setup_network
 setup_data_dir
