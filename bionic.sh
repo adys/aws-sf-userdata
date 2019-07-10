@@ -31,10 +31,6 @@ get_local_ip() {
   echo $(hostname -I | awk '{print $1}')
 }
 
-init_check() {
-  [[ -e $STATIC_VOLUME ]] || return 1
-}
-
 get_local_ip() {
   echo $(hostname -I | awk '{print $1}')
 }
@@ -110,7 +106,18 @@ setup_data_dir() {
 }
 
 # init checks
-[[ -e $STATIC_VOLUME ]] || log_err "'${STATIC_VOLUME}' could not be found"
+# Check static volume device
+TRY=0
+MAX_TRIES=5
+SLEEP=5
+while ! [[ -e $STATIC_VOLUME ]]
+do
+  log_info "'${STATIC_VOLUME}' could not be found"
+  log_info "Trying again in ${SLEEP} secs ..."
+  TRY=$((TRY+1))
+  [[ $TRY -lt $MAX_TRIES ]] || log_err "'${STATIC_VOLUME}' could not be found"
+  sleep $SLEEP
+done
 
 set_vars
 setup_network
