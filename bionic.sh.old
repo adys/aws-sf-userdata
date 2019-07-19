@@ -3,8 +3,7 @@
 ME=$(basename "$0")
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-readonly NET_CONF_FILE_PATH='/etc/network/interfaces.d/51-eth1.cfg'
-readonly DHCP_CONF_FILE_PATH='/etc/dhcp/dhclient-enter-hooks.d/restrict-default-gw'
+readonly NET_CONF_FILE_PATH='/etc/netplan/51-eth1.yaml'
 readonly STATIC_VOLUME='/dev/xvdz'
 readonly DATA_DIR='/data'
 readonly LOG_FILE='/var/log/ll-bootstrap.out'
@@ -65,36 +64,32 @@ set_vars() {
   [[ -z "$STATIC_IP" ]] && log_err "'STATIC_IP' var could not be set"
 }
 
-setup_dhcp() {
-  cat <<EOF > $DHCP_CONF_FILE_PATH
-case \${interface} in
-  eth0)
-    ;;
-  *)
-    unset new_routers
-    ;;
-esac
-EOF
-}
-
 setup_network() {
   cat <<EOF > $NET_CONF_FILE_PATH
-auto eth1
-iface eth1 inet static
-address ${STATIC_IP}
-# TODO: hardcoded
-netmask 255.255.240.0
-
-# Gateway configuration
-up ip route add default via ${SUBNET_GW} dev eth1 table 1000
-
-# Routes and rules
-up ip route add ${STATIC_IP} dev eth1 table 1000
-up ip rule add from ${STATIC_IP} lookup 1000
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    eth1:
+      addresses:
+       - ${STATIC_IP}/${SUBNET_MASK}
+      dhcp4: no
+      routes:
+       - to: 0.0.0.0/0
+         via: ${SUBNET_GW} # Default gateway
+         table: 1000
+       - to: ${STATIC_IP}
+         via: 0.0.0.0
+         scope: link
+         table: 1000
+      routing-policy:
+        - from: ${STATIC_IP}
+          table: 1000
 EOF
+
   log_info "'${NET_CONF_FILE_PATH}' file generated"
-  log_info "Running 'systemctl restart networking'"
-  systemctl restart networking
+  log_info "Running 'netplan --debug apply'"
+  netplan --debug apply
 }
 
 setup_data_dir() {
@@ -125,7 +120,6 @@ do
 done
 
 set_vars
-setup_dhcp
 setup_network
 setup_data_dir
 
