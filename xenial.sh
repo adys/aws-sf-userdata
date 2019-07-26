@@ -113,6 +113,8 @@ setup_data_dir() {
 }
 
 install_packages() {
+  log_info "Running apt update ..."
+  apt update
   log_info "Installing packages"
   for pkg in "${PACKAGES_INSTALL[@]}"; do
     log_info "${pkg}"
