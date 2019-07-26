@@ -3,6 +3,8 @@
 ME=$(basename "$0")
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
+readonly PACKAGES_INSTALL=("jq" "awscli")
+
 readonly NET_CONF_FILE_PATH='/etc/network/interfaces.d/51-eth1.cfg'
 readonly DHCP_CONF_FILE_PATH='/etc/dhcp/dhclient-enter-hooks.d/restrict-default-gw'
 readonly STATIC_VOLUME='/dev/xvdz'
@@ -109,6 +111,16 @@ setup_data_dir() {
   log_info "Mounting the volume"
   mount $STATIC_VOLUME $DATA_DIR
 }
+
+install_packages() {
+  log_info "Installing packages"
+  for pkg in "${PACKAGES_INSTALL[@]}"; do
+    log_info "${pkg}"
+    apt install -yq $pkg
+  done
+}
+
+install_packages
 
 # init checks
 # Check static volume device
