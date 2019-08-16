@@ -21,6 +21,10 @@ SUBNET_WITHOUT_MASK=''
 SUBNET_GW=''
 SUBNET_MASK=''
 STATIC_IP=''
+STATIC_VOLUME=''
+STATIC_INTERFACE_NAME=''
+DYNAMIC_INTERFACE_NAME=''
+SUBNET_FULL_MASK=''
 
 log_info() {
   echo "$(date -I'seconds')|${ME}|info| ${1}" | tee -a $LOG_FILE
@@ -66,6 +70,18 @@ set_vars() {
     '.Reservations[0].Instances[0].NetworkInterfaces[] | select(.PrivateIpAddress!=$local_ip).PrivateIpAddress')
   log_info "STATIC_IP: ${STATIC_IP}"
   [[ -z "$STATIC_IP" ]] && log_err "'STATIC_IP' var could not be set"
+
+  STATIC_INTERFACE_NAME="$(ip -o link show | awk '{print $2,$9}' | grep -v 'lo' | grep 'DOWN' | awk -F':' '{print $1}')"
+  log_info "STATIC_INTERFACE_NAME: ${STATIC_INTERFACE_NAME}"
+  [[ -z "$STATIC_INTERFACE_NAME" ]] && log_err "'STATIC_INTERFACE_NAME' var could not be set"
+
+  DYNAMIC_INTERFACE_NAME="$(ip -o link show | awk '{print $2,$9}' | grep -v 'lo' | grep 'UP' | awk -F':' '{print $1}')"
+  log_info "DYNAMIC_INTERFACE_NAME: ${DYNAMIC_INTERFACE_NAME}"
+  [[ -z "$DYNAMIC_INTERFACE_NAME" ]] && log_err "'DYNAMIC_INTERFACE_NAME' var could not be set"
+
+  SUBNET_FULL_MASK="$(ifconfig $DYNAMIC_INTERFACE_NAME | awk '/Mask:/{ print $4;} ' | awk -F':' '{print $2}')"
+  log_info "SUBNET_FULL_MASK: ${SUBNET_FULL_MASK}"
+  [[ -z "$SUBNET_FULL_MASK" ]] && log_err "'SUBNET_FULL_MASK' var could not be set"
 }
 
 setup_dhcp() {
@@ -82,11 +98,10 @@ EOF
 
 setup_network() {
   cat <<EOF > $NET_CONF_FILE_PATH
-auto eth1
-iface eth1 inet static
+auto ${STATIC_INTERFACE_NAME}
+iface ${STATIC_INTERFACE_NAME} inet static
 address ${STATIC_IP}
-# TODO: hardcoded
-netmask 255.255.240.0
+netmask ${SUBNET_FULL_MASK}
 
 # Gateway configuration
 up ip route add default via ${SUBNET_GW} dev eth1 table 1000
@@ -132,8 +147,8 @@ MAX_TRIES=5
 SLEEP=5
 
 while true; do
-  static_vols=$(ls "${STATIC_VOLUME_NAMES[@]}" 2> /dev/null | wc -l)
-  if [ "$static_vols" != "0" ];then
+  STATIC_VOLUME=$(ls "${STATIC_VOLUME_NAMES[@]}" 2> /dev/null)
+  if [ "$(echo $STATIC_VOLUME | wc -l)" == "1" ];then
     log_info "Static volume has been found"
     break
   fi
