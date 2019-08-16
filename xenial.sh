@@ -105,7 +105,7 @@ netmask ${SUBNET_FULL_MASK}
 
 # Gateway configuration
 up ip route add default via ${SUBNET_GW} dev ${STATIC_INTERFACE_NAME} table 1000
-up ip route add default via 172.20.32.1
+up ip route add default via ${SUBNET_GW}
 
 # Routes and rules
 up ip route add ${STATIC_IP} dev ${STATIC_INTERFACE_NAME} table 1000
@@ -113,7 +113,7 @@ up ip rule add from ${STATIC_IP} lookup 1000
 EOF
   log_info "'${NET_CONF_FILE_PATH}' file generated"
   log_info "Running 'systemctl restart networking'"
-  #systemctl restart networking
+  systemctl restart networking
 }
 
 setup_data_dir() {
