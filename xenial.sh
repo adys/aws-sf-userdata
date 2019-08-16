@@ -5,7 +5,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 readonly PACKAGES_INSTALL=("jq" "awscli")
 
-readonly NET_CONF_FILE_PATH='/etc/network/interfaces.d/51-eth1.cfg'
+readonly NET_CONF_FILE_PATH='/etc/network/interfaces.d/51-static-interface.cfg'
 readonly DHCP_CONF_FILE_PATH='/etc/dhcp/dhclient-enter-hooks.d/restrict-default-gw'
 readonly STATIC_VOLUME_NAMES=( '/dev/xvdz' '/dev/nvme1n1' )
 
@@ -104,10 +104,10 @@ address ${STATIC_IP}
 netmask ${SUBNET_FULL_MASK}
 
 # Gateway configuration
-up ip route add default via ${SUBNET_GW} dev eth1 table 1000
+up ip route add default via ${SUBNET_GW} dev ${STATIC_INTERFACE_NAME} table 1000
 
 # Routes and rules
-up ip route add ${STATIC_IP} dev eth1 table 1000
+up ip route add ${STATIC_IP} dev ${STATIC_INTERFACE_NAME} table 1000
 up ip rule add from ${STATIC_IP} lookup 1000
 EOF
   log_info "'${NET_CONF_FILE_PATH}' file generated"
