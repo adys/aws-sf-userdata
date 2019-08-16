@@ -7,7 +7,8 @@ readonly PACKAGES_INSTALL=("jq" "awscli")
 
 readonly NET_CONF_FILE_PATH='/etc/network/interfaces.d/51-eth1.cfg'
 readonly DHCP_CONF_FILE_PATH='/etc/dhcp/dhclient-enter-hooks.d/restrict-default-gw'
-readonly STATIC_VOLUME='/dev/xvdz'
+readonly STATIC_VOLUME_NAMES=( '/dev/xvdz' )
+
 readonly DATA_DIR='/data'
 readonly LOG_FILE='/var/log/ll-bootstrap.out'
 
@@ -95,8 +96,8 @@ up ip route add ${STATIC_IP} dev eth1 table 1000
 up ip rule add from ${STATIC_IP} lookup 1000
 EOF
   log_info "'${NET_CONF_FILE_PATH}' file generated"
-  log_info "Running 'systemctl restart networking'"
-  systemctl restart networking
+  #log_info "Running 'systemctl restart networking'"
+  #systemctl restart networking
 }
 
 setup_data_dir() {
@@ -129,12 +130,17 @@ install_packages
 TRY=0
 MAX_TRIES=5
 SLEEP=5
-while ! [[ -e $STATIC_VOLUME ]]
-do
-  log_info "'${STATIC_VOLUME}' could not be found"
+
+while true; do
+  static_vols=$(ls "${STATIC_VOLUME_NAMES[@]}" 2> /dev/null | wc -l)
+  if [ "$static_vols" != "0" ];then
+    log_info "Static volume has been found"
+    break
+  fi
+  log_info "'${STATIC_VOLUME_NAMES[@]}' could not be found"
   log_info "Trying again in ${SLEEP} secs ..."
   TRY=$((TRY+1))
-  [[ $TRY -lt $MAX_TRIES ]] || log_err "'${STATIC_VOLUME}' could not be found"
+  [[ $TRY -lt $MAX_TRIES ]] || log_err "Exiting ..."
   sleep $SLEEP
 done
 
