@@ -7,7 +7,7 @@ readonly PACKAGES_INSTALL=("jq" "awscli")
 
 readonly NET_CONF_FILE_PATH='/etc/network/interfaces.d/51-eth1.cfg'
 readonly DHCP_CONF_FILE_PATH='/etc/dhcp/dhclient-enter-hooks.d/restrict-default-gw'
-readonly STATIC_VOLUME_NAMES=( '/dev/xvdz' )
+readonly STATIC_VOLUME_NAMES=( '/dev/xvdz' '/dev/nvme1n1' )
 
 readonly DATA_DIR='/data'
 readonly LOG_FILE='/var/log/ll-bootstrap.out'
